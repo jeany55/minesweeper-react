@@ -7,6 +7,7 @@ class GameBoard extends Component {
     return (
       <GameSquare>
         {square.mine && 'x'}
+        {square.number && square.number}
       </GameSquare>
     );
   }
