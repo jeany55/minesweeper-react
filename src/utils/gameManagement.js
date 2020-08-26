@@ -87,13 +87,26 @@ export const discoverSquare = (column, row, gameState) => {
 
   // If square does not have a number recursively discover...
   if (!newGameState[row][column].number) {
-    // console.log(`${column} ${row}`);
     discoverSquareRecursive(column, row);
   } else {
     newGameState[row][column].discovered = true;
   }
 
   return newGameState;
+};
+
+export const checkVictory = (gameState, mineCount) => {
+  let unopenedCells = 0;
+
+  gameState.forEach((a) => {
+    a.forEach((square) => {
+      if (!square.discovered) {
+        unopenedCells += 1;
+      }
+    });
+  });
+
+  return mineCount === unopenedCells;
 };
 
 export const checkIfFlag = (column, row, gameState) => gameState[row][column].flag === true;

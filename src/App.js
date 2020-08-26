@@ -5,7 +5,13 @@ import { isEmpty } from 'lodash';
 import 'antd/dist/antd.css';
 import './App.css';
 import {
-  generateGameState, checkIfFlag, toggleFlag, discoverSquare, checkIfDiscovered, checkIfMine,
+  generateGameState,
+  checkIfFlag,
+  toggleFlag,
+  discoverSquare,
+  checkIfDiscovered,
+  checkIfMine,
+  checkVictory,
 } from './utils/gameManagement';
 import GameBoard from './components/GameBoard';
 
@@ -18,10 +24,13 @@ class App extends Component {
       rows: 10,
       mines: 40,
       flags: 0,
+      gameOver: false,
     };
   }
 
   onSquareRightClick(y, x) {
+    if (this.state.gameOver) return;
+
     const squareHasFlag = checkIfFlag(x, y, this.state.gameState);
 
     if (checkIfDiscovered(x, y, this.state.gameState)) return;
@@ -39,22 +48,34 @@ class App extends Component {
   }
 
   onSquareLeftClick(y, x) {
+    if (this.state.gameOver) return;
     if (checkIfFlag(x, y, this.state.gameState)) return;
-
     if (checkIfMine(x, y, this.state.gameState)) {
-      console.log('omg game overr');
+      this.setState({ gameOver: true });
       return;
     }
 
     this.setState((prevState) => ({ gameState: discoverSquare(x, y, prevState.gameState) }));
 
-    console.log(`x: ${x} y: ${y}`);
+    this.checkIfWon();
+  }
+
+  checkIfWon() {
+    return checkVictory(this.state.gameState, this.state.mines);
   }
 
   startGame() {
     const gameState = generateGameState(this.state.rows, this.state.columns, this.state.mines);
 
     this.setState(() => ({ gameState }));
+  }
+
+  resetGame() {
+    this.setState({
+      gameState: [],
+      gameOver: false,
+      flags: 0,
+    });
   }
 
   renderGameSettings() {
@@ -80,13 +101,13 @@ class App extends Component {
   }
 
   render() {
+    const victory = this.checkIfWon();
+
     return (
       <div className="App">
         <h1>
           Minesweeper
         </h1>
-
-        {console.log(this.state.gameState)}
 
         {isEmpty(this.state.gameState)
           ? this.renderGameSettings()
@@ -97,6 +118,9 @@ class App extends Component {
               flags={this.state.flags}
               onSquareClick={(x, y) => this.onSquareLeftClick(x, y)}
               onSquareRightClick={(x, y) => this.onSquareRightClick(x, y)}
+              gameOver={this.state.gameOver}
+              resetGame={() => this.resetGame()}
+              victory={victory}
             />
           )}
       </div>
