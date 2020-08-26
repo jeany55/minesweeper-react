@@ -1,4 +1,4 @@
-import { random, get } from 'lodash';
+import { random, get, cloneDeep } from 'lodash';
 
 export const generateGameState = (rows, columns, mines) => {
   const gameState = [];
@@ -12,6 +12,7 @@ export const generateGameState = (rows, columns, mines) => {
     for (let g = 0; g < columns; g += 1) {
       const element = {
         mine: false,
+        discovered: false,
       };
 
       const calc = minesRemaining / squaresRemaining;
@@ -32,7 +33,7 @@ export const generateGameState = (rows, columns, mines) => {
   for (let column = 0; column < rows; column += 1) {
     for (let row = 0; row < columns; row += 1) {
       if (!gameState[column][row].mine) {
-        // Calculate number of mines beside
+        // Calculate number of mines beside each square
         let mineCount = 0;
 
         if (get(gameState, `[${column - 1}][${row}].mine`)) mineCount += 1;
@@ -49,11 +50,55 @@ export const generateGameState = (rows, columns, mines) => {
     }
   }
 
-  console.log(JSON.stringify(gameState));
-
   return gameState;
 };
 
-export const debug = () => {
-  console.log('ok');
+export const toggleFlag = (column, row, gameState) => {
+  const newGameState = cloneDeep(gameState);
+
+  newGameState[row][column].flag = !gameState[row][column].flag;
+
+  return newGameState;
 };
+
+export const discoverSquare = (column, row, gameState) => {
+  const newGameState = cloneDeep(gameState);
+
+  const discoverSquareRecursive = (rColumn, rRow) => {
+    // BASE CASE: If square is out of bounds, has a mine, or is discovered
+
+    if (!get(newGameState, `[${rRow}][${rColumn}]`) || newGameState[rRow][rColumn].mine || newGameState[rRow][rColumn].discovered) return;
+    if (newGameState[rRow][rColumn].number) {
+      newGameState[rRow][rColumn].discovered = true;
+      return;
+    }
+
+    newGameState[rRow][rColumn].discovered = true;
+
+    discoverSquareRecursive(rColumn + 1, rRow);
+    discoverSquareRecursive(rColumn - 1, rRow);
+    discoverSquareRecursive(rColumn, rRow + 1);
+    discoverSquareRecursive(rColumn, rRow - 1);
+    discoverSquareRecursive(rColumn + 1, rRow + 1);
+    discoverSquareRecursive(rColumn - 1, rRow + 1);
+    discoverSquareRecursive(rColumn + 1, rRow - 1);
+    discoverSquareRecursive(rColumn - 1, rRow - 1);
+  };
+
+  // If square does not have a number recursively discover...
+  if (!newGameState[row][column].number) {
+    // console.log(`${column} ${row}`);
+    discoverSquareRecursive(column, row);
+  } else {
+    newGameState[row][column].discovered = true;
+  }
+
+  return newGameState;
+};
+
+export const checkIfFlag = (column, row, gameState) => gameState[row][column].flag === true;
+
+export const checkIfMine = (column, row, gameState) => gameState[row][column].mine === true;
+
+export const
+  checkIfDiscovered = (column, row, gameState) => gameState[row][column].discovered === true;
