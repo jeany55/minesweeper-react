@@ -30,12 +30,11 @@ class App extends Component {
 
   onSquareRightClick(y, x) {
     if (this.state.gameOver) return;
+    if (checkIfDiscovered(x, y, this.state.gameState)) return;
 
     const squareHasFlag = checkIfFlag(x, y, this.state.gameState);
 
-    if (checkIfDiscovered(x, y, this.state.gameState)) return;
-
-    // If trying to place a flag and flag count is hit, do nothing
+    // If trying to place a flag and the max flag count is hit, do nothing
     if (this.state.flags === this.state.mines && !squareHasFlag) return;
 
     this.setState((prevState) => ({ gameState: toggleFlag(x, y, prevState.gameState) }));
@@ -56,7 +55,6 @@ class App extends Component {
     }
 
     this.setState((prevState) => ({ gameState: discoverSquare(x, y, prevState.gameState) }));
-
     this.checkIfWon();
   }
 
