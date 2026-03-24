@@ -323,6 +323,7 @@ function App() {
                     valueLabelDisplay="auto"
                     sx={{
                       color: '#a78bfa',
+                      touchAction: 'pan-y',
                       '& .MuiSlider-thumb': {
                         boxShadow: '0 0 10px rgba(167,139,250,0.4)',
                       },
@@ -342,6 +343,7 @@ function App() {
                     valueLabelDisplay="auto"
                     sx={{
                       color: '#a78bfa',
+                      touchAction: 'pan-y',
                       '& .MuiSlider-thumb': {
                         boxShadow: '0 0 10px rgba(167,139,250,0.4)',
                       },
@@ -361,6 +363,7 @@ function App() {
                     valueLabelDisplay="auto"
                     sx={{
                       color: '#f472b6',
+                      touchAction: 'pan-y',
                       '& .MuiSlider-thumb': {
                         boxShadow: '0 0 10px rgba(244,114,182,0.4)',
                       },
