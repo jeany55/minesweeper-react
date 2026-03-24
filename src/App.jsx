@@ -223,19 +223,7 @@ function App() {
               Minesweeper
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-            <Box sx={{ width: 40, height: 1, background: 'linear-gradient(90deg, transparent, rgba(148,163,184,0.2))' }} />
-            <Typography variant="body2" sx={{
-              color: 'text.secondary',
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: '0.8rem',
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-            }}>
-              react + material ui
-            </Typography>
-            <Box sx={{ width: 40, height: 1, background: 'linear-gradient(90deg, rgba(148,163,184,0.2), transparent)' }} />
-          </Box>
+
         </Box>
 
         {!inGame ? (

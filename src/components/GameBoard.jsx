@@ -20,7 +20,6 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
-import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import BarChartIcon from '@mui/icons-material/BarChart';
 
@@ -45,6 +44,8 @@ const numberColors = {
 };
 
 const LONG_PRESS_MS = 400;
+const MOVE_THRESHOLD_PX = 10;   // finger must stay within this radius to count as a tap
+const MIN_TAP_MS = 60;          // ignore taps shorter than this (accidental brushes)
 
 function MineIcon({ gameOver, victory, size }) {
   const isLoss = gameOver && !victory;
@@ -74,6 +75,9 @@ function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, d
   const longPressTimer = useRef(null);
   const didLongPress = useRef(false);
   const isTouchDevice = useRef(false);
+  const touchOrigin = useRef({ x: 0, y: 0 });
+  const touchStartTime = useRef(0);
+  const movedBeyondThreshold = useRef(false);
 
   let bg;
   if (square.mine && gameOver && !victory) {
@@ -86,9 +90,13 @@ function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, d
     bg = 'rgba(148, 163, 184, 0.15)';
   }
 
-  const handleTouchStart = useCallback(() => {
+  const handleTouchStart = useCallback((e) => {
     isTouchDevice.current = true;
     didLongPress.current = false;
+    movedBeyondThreshold.current = false;
+    const touch = e.touches[0];
+    touchOrigin.current = { x: touch.clientX, y: touch.clientY };
+    touchStartTime.current = Date.now();
     longPressTimer.current = setTimeout(() => {
       didLongPress.current = true;
       onRightClick();
@@ -101,15 +109,30 @@ function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, d
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    if (!didLongPress.current && !digLocked) {
+    // Ignore if the finger moved too far (user was scrolling/swiping)
+    if (movedBeyondThreshold.current) return;
+    // Ignore if already handled by long press
+    if (didLongPress.current) return;
+    // Ignore very brief accidental touches
+    if (Date.now() - touchStartTime.current < MIN_TAP_MS) return;
+    // In flag mode, taps place/remove flags; otherwise taps dig
+    if (digLocked) {
+      onRightClick();
+    } else {
       onClick();
     }
-  }, [onClick, digLocked]);
+  }, [onClick, onRightClick, digLocked]);
 
-  const handleTouchMove = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
+  const handleTouchMove = useCallback((e) => {
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchOrigin.current.x;
+    const dy = touch.clientY - touchOrigin.current.y;
+    if (dx * dx + dy * dy > MOVE_THRESHOLD_PX * MOVE_THRESHOLD_PX) {
+      movedBeyondThreshold.current = true;
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
     }
   }, []);
 
@@ -325,11 +348,11 @@ function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, on
         sx={{ mb: 2, display: { xs: 'flex', md: 'none' } }}
       >
         <Box sx={instructionStyle}>
-          <Typography sx={{ color: '#a78bfa', fontSize: '0.8rem', fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>
+          <Typography sx={{ color: digLocked ? '#f472b6' : '#a78bfa', fontSize: '0.8rem', fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}>
             Tap
           </Typography>
           <Typography sx={{ color: '#94a3b8', fontSize: '0.8rem' }}>
-            to dig
+            {digLocked ? 'to flag' : 'to dig'}
           </Typography>
         </Box>
         <Box sx={instructionStyle}>
@@ -387,7 +410,7 @@ function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, on
         spacing={1.5}
         sx={{ mt: 2.5, flexWrap: 'wrap', gap: 1 }}
       >
-        {/* Dig lock switch - mobile/tablet only */}
+        {/* Flag mode switch - mobile/tablet only */}
         <Box
           onClick={() => setDigLocked((d) => !d)}
           sx={{
@@ -400,23 +423,23 @@ function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, on
             py: 1.2,
             borderRadius: '14px',
             border: '1px solid',
-            borderColor: digLocked ? 'rgba(251,191,36,0.35)' : 'rgba(148,163,184,0.15)',
-            background: digLocked ? 'rgba(251,191,36,0.06)' : 'rgba(148,163,184,0.04)',
+            borderColor: digLocked ? 'rgba(244,114,182,0.35)' : 'rgba(148,163,184,0.15)',
+            background: digLocked ? 'rgba(244,114,182,0.06)' : 'rgba(148,163,184,0.04)',
             transition: 'all 0.2s ease',
             userSelect: 'none',
           }}
         >
           {digLocked
-            ? <LockIcon sx={{ fontSize: 18, color: '#fbbf24' }} />
+            ? <FlagIcon sx={{ fontSize: 18, color: '#f472b6' }} />
             : <LockOpenIcon sx={{ fontSize: 18, color: '#94a3b8' }} />
           }
           <Typography sx={{
             fontSize: '0.8rem',
             fontWeight: 600,
-            color: digLocked ? '#fbbf24' : '#94a3b8',
+            color: digLocked ? '#f472b6' : '#94a3b8',
             fontFamily: '"JetBrains Mono", monospace',
           }}>
-            Dig lock
+            {digLocked ? 'Flag mode' : 'Dig mode'}
           </Typography>
           {/* Custom switch track */}
           <Box sx={{
@@ -424,7 +447,7 @@ function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, on
             height: 26,
             borderRadius: '13px',
             background: digLocked
-              ? 'rgba(251,191,36,0.3)'
+              ? 'rgba(244,114,182,0.3)'
               : 'rgba(148,163,184,0.2)',
             position: 'relative',
             transition: 'background 0.2s ease',
@@ -435,13 +458,13 @@ function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, on
               width: 20,
               height: 20,
               borderRadius: '50%',
-              background: digLocked ? '#fbbf24' : '#94a3b8',
+              background: digLocked ? '#f472b6' : '#94a3b8',
               position: 'absolute',
               top: 3,
               left: digLocked ? 21 : 3,
               transition: 'all 0.2s ease',
               boxShadow: digLocked
-                ? '0 0 8px rgba(251,191,36,0.4)'
+                ? '0 0 8px rgba(244,114,182,0.4)'
                 : '0 1px 3px rgba(0,0,0,0.3)',
             }} />
           </Box>
