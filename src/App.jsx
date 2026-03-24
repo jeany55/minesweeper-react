@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { isEmpty } from 'lodash';
 import {
   Box,
@@ -8,7 +8,9 @@ import {
   Button,
   Stack,
   Slider,
+  IconButton,
 } from '@mui/material';
+import GitHubIcon from '@mui/icons-material/GitHub';
 import {
   generateGameState,
   checkIfFlag,
@@ -38,6 +40,29 @@ function App() {
   const [gameOver, setGameOver] = useState(false);
   const [time, setTime] = useState(0);
   const [timerRef, setTimerRef] = useState(null);
+  const [gamesPlayed, setGamesPlayed] = useState(() => {
+    const saved = localStorage.getItem('minesweeper_stats');
+    return saved ? JSON.parse(saved).gamesPlayed ?? 0 : 0;
+  });
+  const [gamesWon, setGamesWon] = useState(() => {
+    const saved = localStorage.getItem('minesweeper_stats');
+    return saved ? JSON.parse(saved).gamesWon ?? 0 : 0;
+  });
+  const [bestTime, setBestTime] = useState(() => {
+    const saved = localStorage.getItem('minesweeper_stats');
+    return saved ? JSON.parse(saved).bestTime ?? null : null;
+  });
+
+  // Persist stats to localStorage
+  useEffect(() => {
+    localStorage.setItem('minesweeper_stats', JSON.stringify({ gamesPlayed, gamesWon, bestTime }));
+  }, [gamesPlayed, gamesWon, bestTime]);
+
+  const resetStats = useCallback(() => {
+    setGamesPlayed(0);
+    setGamesWon(0);
+    setBestTime(null);
+  }, []);
 
   const maxMines = Math.max(1, Math.floor(rows * columns * 0.8));
 
@@ -67,10 +92,14 @@ function App() {
   if (victory && timerRef) {
     clearInterval(timerRef);
     setTimerRef(null);
+    setGamesPlayed((p) => p + 1);
+    setGamesWon((w) => w + 1);
+    setBestTime((prev) => (prev === null || time < prev) ? time : prev);
   }
   if (gameOver && timerRef) {
     clearInterval(timerRef);
     setTimerRef(null);
+    setGamesPlayed((p) => p + 1);
   }
 
   const onSquareRightClick = useCallback((y, x) => {
@@ -102,8 +131,32 @@ function App() {
     return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // Count discovered squares for progress
+  const { discovered, total, safeTotal } = useMemo(() => {
+    if (isEmpty(gameState)) return { discovered: 0, total: 0, safeTotal: 0 };
+    let d = 0, t = 0;
+    gameState.forEach((row) => row.forEach((sq) => {
+      t++;
+      if (sq.discovered) d++;
+    }));
+    return { discovered: d, total: t, safeTotal: t - mines };
+  }, [gameState, mines]);
+
+  const progress = safeTotal > 0 ? Math.round((discovered / safeTotal) * 100) : 0;
+
+  const inGame = !isEmpty(gameState);
+
+  const sideGlass = {
+    background: 'rgba(15, 23, 42, 0.4)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid rgba(148, 163, 184, 0.08)',
+    borderRadius: '16px',
+    p: 3,
+  };
+
   return (
-    <Box sx={{ minHeight: '100vh', position: 'relative' }}>
+    <Box sx={{ minHeight: '100vh', position: 'relative', display: 'flex', flexDirection: 'column' }}>
       {/* Ambient glow orbs */}
       <Box sx={{
         position: 'fixed', top: '-10%', left: '-10%', width: 600, height: 600,
@@ -116,30 +169,76 @@ function App() {
         animation: 'breathe2 9s ease-in-out infinite', pointerEvents: 'none', zIndex: 0,
       }} />
 
-      <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, py: { xs: 4, md: 6 } }}>
+      <Container
+        maxWidth={inGame ? 'lg' : 'md'}
+        sx={{ position: 'relative', zIndex: 1, py: { xs: 4, md: 6 }, flex: 1 }}
+      >
         {/* Header */}
         <Box sx={{ textAlign: 'center', mb: 4 }} className="fade-in-up">
-          <Typography
-            variant="h3"
-            sx={{
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              background: 'linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #818cf8 100%)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              fontSize: { xs: '2.2rem', md: '3.2rem' },
-              mb: 1,
-            }}
-          >
-            Minesweeper
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}>
-            react + material ui
-          </Typography>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: { xs: 1.5, md: 2 }, mb: 1 }}>
+            {/* Animated mine icon */}
+            <Box sx={{
+              width: { xs: 36, md: 48 },
+              height: { xs: 36, md: 48 },
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: inGame ? 'none' : 'float 4s ease-in-out infinite',
+              filter: 'drop-shadow(0 0 12px rgba(167,139,250,0.4))',
+            }}>
+              <svg viewBox="0 0 24 24" width="100%" height="100%">
+                <defs>
+                  <linearGradient id="titleMineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#a78bfa" />
+                    <stop offset="50%" stopColor="#f472b6" />
+                    <stop offset="100%" stopColor="#818cf8" />
+                  </linearGradient>
+                </defs>
+                <circle cx="12" cy="12" r="7" fill="url(#titleMineGrad)" />
+                <rect x="11" y="1" width="2" height="6" rx="1" fill="url(#titleMineGrad)" />
+                <rect x="11" y="17" width="2" height="6" rx="1" fill="url(#titleMineGrad)" />
+                <rect x="1" y="11" width="6" height="2" rx="1" fill="url(#titleMineGrad)" />
+                <rect x="17" y="11" width="6" height="2" rx="1" fill="url(#titleMineGrad)" />
+                <rect x="4.1" y="4.1" width="2" height="5" rx="1" fill="url(#titleMineGrad)" transform="rotate(-45 5.1 6.6)" />
+                <rect x="15.5" y="15.5" width="2" height="5" rx="1" fill="url(#titleMineGrad)" transform="rotate(-45 16.5 18)" />
+                <rect x="15.5" y="3.5" width="2" height="5" rx="1" fill="url(#titleMineGrad)" transform="rotate(45 16.5 6)" />
+                <rect x="4.1" y="14.9" width="2" height="5" rx="1" fill="url(#titleMineGrad)" transform="rotate(45 5.1 17.4)" />
+                <circle cx="9" cy="9" r="2.5" fill="rgba(255,255,255,0.25)" />
+              </svg>
+            </Box>
+            <Typography
+              variant="h3"
+              sx={{
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                background: 'linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #818cf8 100%)',
+                backgroundSize: inGame ? '100% 100%' : '200% 200%',
+                animation: inGame ? 'none' : 'shimmer 6s ease-in-out infinite',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: { xs: '2.2rem', md: '3.2rem' },
+              }}
+            >
+              Minesweeper
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+            <Box sx={{ width: 40, height: 1, background: 'linear-gradient(90deg, transparent, rgba(148,163,184,0.2))' }} />
+            <Typography variant="body2" sx={{
+              color: 'text.secondary',
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: '0.8rem',
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+            }}>
+              react + material ui
+            </Typography>
+            <Box sx={{ width: 40, height: 1, background: 'linear-gradient(90deg, rgba(148,163,184,0.2), transparent)' }} />
+          </Box>
         </Box>
 
-        {isEmpty(gameState) ? (
+        {!inGame ? (
           /* Startup / Settings Card */
           <Box sx={{ maxWidth: 460, mx: 'auto' }} className="rise">
             {/* Hero mine illustration */}
@@ -152,7 +251,6 @@ function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                {/* Pulsing ring */}
                 <Box sx={{
                   position: 'absolute',
                   inset: 0,
@@ -167,7 +265,6 @@ function App() {
                   border: '1px solid rgba(244,114,182,0.1)',
                   animation: 'pulse 3s ease-in-out 1s infinite',
                 }} />
-                {/* Mine SVG */}
                 <svg viewBox="0 0 24 24" width="56" height="56">
                   <defs>
                     <linearGradient id="mineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -336,21 +433,210 @@ function App() {
             </Box>
           </Box>
         ) : (
-          /* Game Board */
-          <GameBoard
-            gameState={gameState}
-            mineCount={mines}
-            flags={flags}
-            columnCount={columns}
-            onSquareClick={onSquareLeftClick}
-            onSquareRightClick={onSquareRightClick}
-            gameOver={gameOver}
-            resetGame={resetGame}
-            victory={victory}
-            time={formatTime(time)}
-          />
+          /* Game Board — desktop gets side panels */
+          <Box sx={{
+            display: 'flex',
+            gap: 3,
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+          }}>
+            {/* Left panel — desktop only */}
+            <Box sx={{
+              display: { xs: 'none', lg: 'flex' },
+              flexDirection: 'column',
+              gap: 2,
+              width: 220,
+              flexShrink: 0,
+              position: 'sticky',
+              top: 32,
+            }}
+              className="fade-in-up"
+            >
+              {/* Game info */}
+              <Box sx={sideGlass}>
+                <Typography sx={{ fontSize: '0.7rem', fontFamily: '"JetBrains Mono", monospace', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', mb: 2 }}>
+                  Game Info
+                </Typography>
+                <Stack spacing={1.5}>
+                  {[
+                    { label: 'Grid', value: `${rows} x ${columns}` },
+                    { label: 'Mines', value: mines },
+                    { label: 'Density', value: `${Math.round((mines / (rows * columns)) * 100)}%` },
+                  ].map((item) => (
+                    <Box key={item.label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8' }}>{item.label}</Typography>
+                      <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, fontFamily: '"JetBrains Mono", monospace', color: '#f1f5f9' }}>{item.value}</Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+
+              {/* Progress */}
+              <Box sx={sideGlass}>
+                <Typography sx={{ fontSize: '0.7rem', fontFamily: '"JetBrains Mono", monospace', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', mb: 2 }}>
+                  Progress
+                </Typography>
+                <Box sx={{ position: 'relative', mb: 1 }}>
+                  <Box sx={{
+                    height: 6,
+                    borderRadius: 3,
+                    background: 'rgba(148,163,184,0.1)',
+                    overflow: 'hidden',
+                  }}>
+                    <Box sx={{
+                      height: '100%',
+                      width: `${progress}%`,
+                      borderRadius: 3,
+                      background: victory
+                        ? 'linear-gradient(90deg, #34d399, #22d3ee)'
+                        : 'linear-gradient(90deg, #a78bfa, #f472b6)',
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </Box>
+                </Box>
+                <Typography sx={{ fontSize: '0.75rem', fontFamily: '"JetBrains Mono", monospace', color: '#94a3b8', textAlign: 'right' }}>
+                  {progress}% cleared
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Center — Game Board */}
+            <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+              <GameBoard
+                gameState={gameState}
+                mineCount={mines}
+                flags={flags}
+                columnCount={columns}
+                rows={rows}
+                columns={columns}
+                onSquareClick={onSquareLeftClick}
+                onSquareRightClick={onSquareRightClick}
+                gameOver={gameOver}
+                resetGame={resetGame}
+                victory={victory}
+                time={formatTime(time)}
+                stats={{ gamesPlayed, gamesWon, bestTime }}
+                resetStats={resetStats}
+                progress={progress}
+                formatTime={formatTime}
+              />
+            </Box>
+
+            {/* Right panel — desktop only */}
+            <Box sx={{
+              display: { xs: 'none', lg: 'flex' },
+              flexDirection: 'column',
+              gap: 2,
+              width: 220,
+              flexShrink: 0,
+              position: 'sticky',
+              top: 32,
+            }}
+              className="fade-in-up"
+            >
+              {/* Session stats */}
+              <Box sx={sideGlass}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontFamily: '"JetBrains Mono", monospace', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    Stats
+                  </Typography>
+                  <Typography
+                    component="button"
+                    onClick={resetStats}
+                    sx={{
+                      fontSize: '0.6rem',
+                      fontFamily: '"JetBrains Mono", monospace',
+                      color: 'rgba(148,163,184,0.3)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      background: 'none',
+                      border: '1px solid rgba(148,163,184,0.1)',
+                      borderRadius: '6px',
+                      px: 1,
+                      py: 0.3,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        color: '#f472b6',
+                        borderColor: 'rgba(244,114,182,0.3)',
+                      },
+                    }}
+                  >
+                    Reset
+                  </Typography>
+                </Box>
+                <Stack spacing={1.5}>
+                  {[
+                    { label: 'Played', value: gamesPlayed },
+                    { label: 'Won', value: gamesWon },
+                    { label: 'Win Rate', value: gamesPlayed > 0 ? `${Math.round((gamesWon / gamesPlayed) * 100)}%` : '--' },
+                    { label: 'Best Time', value: bestTime !== null ? formatTime(bestTime) : '--' },
+                  ].map((item) => (
+                    <Box key={item.label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8' }}>{item.label}</Typography>
+                      <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, fontFamily: '"JetBrains Mono", monospace', color: '#f1f5f9' }}>{item.value}</Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+
+              {/* Keyboard shortcuts */}
+              <Box sx={sideGlass}>
+                <Typography sx={{ fontSize: '0.7rem', fontFamily: '"JetBrains Mono", monospace', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', mb: 2 }}>
+                  Controls
+                </Typography>
+                <Stack spacing={1}>
+                  {[
+                    { key: 'Left click', action: 'Dig' },
+                    { key: 'Right click', action: 'Flag' },
+                  ].map((item) => (
+                    <Box key={item.key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{
+                        px: 1,
+                        py: 0.3,
+                        borderRadius: '6px',
+                        background: 'rgba(148,163,184,0.1)',
+                        border: '1px solid rgba(148,163,184,0.15)',
+                      }}>
+                        <Typography sx={{ fontSize: '0.65rem', fontFamily: '"JetBrains Mono", monospace', color: '#a78bfa', fontWeight: 600 }}>
+                          {item.key}
+                        </Typography>
+                      </Box>
+                      <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8' }}>{item.action}</Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            </Box>
+          </Box>
         )}
       </Container>
+
+      {/* Footer */}
+      <Box sx={{
+        position: 'relative',
+        zIndex: 1,
+        textAlign: 'center',
+        pb: 3,
+        pt: 2,
+      }}>
+        <IconButton
+          component="a"
+          href="https://github.com/jeany55/minesweeper-react"
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{
+            color: 'rgba(148,163,184,0.4)',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              color: '#a78bfa',
+              background: 'rgba(167,139,250,0.08)',
+            },
+          }}
+        >
+          <GitHubIcon sx={{ fontSize: 22 }} />
+        </IconButton>
+      </Box>
     </Box>
   );
 }

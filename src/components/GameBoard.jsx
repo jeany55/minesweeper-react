@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  SwipeableDrawer,
 } from '@mui/material';
 import FlagIcon from '@mui/icons-material/Flag';
 import TimerIcon from '@mui/icons-material/Timer';
@@ -21,6 +22,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import BarChartIcon from '@mui/icons-material/BarChart';
 
 const glassCard = {
   background: 'rgba(15, 23, 42, 0.55)',
@@ -212,10 +214,11 @@ function useTileSize(columnCount) {
   }, [columnCount, windowWidth]);
 }
 
-function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, onSquareRightClick, gameOver, resetGame, victory, time }) {
+function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, onSquareRightClick, gameOver, resetGame, victory, time, rows, columns, stats, resetStats, progress, formatTime }) {
   const [debug, setDebug] = useState(false);
   const [digLocked, setDigLocked] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const tileSize = useTileSize(columnCount);
 
   const statusColor = victory ? '#34d399' : gameOver ? '#ef4444' : '#a78bfa';
@@ -488,7 +491,133 @@ function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, on
         >
           New Game
         </Button>
+
+        {/* Stats button - mobile/tablet only (panels visible on lg+) */}
+        <Tooltip title="View stats">
+          <Button
+            variant="outlined"
+            onClick={() => setStatsOpen(true)}
+            sx={{
+              display: { xs: 'inline-flex', lg: 'none' },
+              minWidth: 0,
+              px: 1.5,
+              borderColor: 'rgba(148,163,184,0.2)',
+              color: 'text.secondary',
+              '&:hover': {
+                borderColor: '#a78bfa',
+                color: '#a78bfa',
+                background: 'rgba(167,139,250,0.08)',
+              },
+            }}
+          >
+            <BarChartIcon sx={{ fontSize: 20 }} />
+          </Button>
+        </Tooltip>
       </Stack>
+
+      {/* Stats Drawer - mobile/tablet */}
+      <SwipeableDrawer
+        anchor="bottom"
+        open={statsOpen}
+        onClose={() => setStatsOpen(false)}
+        onOpen={() => setStatsOpen(true)}
+        disableSwipeToOpen
+        swipeAreaWidth={0}
+        PaperProps={{
+          sx: {
+            background: 'rgba(15, 23, 42, 0.97)',
+            backdropFilter: 'blur(24px)',
+            borderTopLeftRadius: '20px',
+            borderTopRightRadius: '20px',
+            border: '1px solid rgba(148, 163, 184, 0.1)',
+            borderBottom: 'none',
+            maxHeight: '70vh',
+            px: 3,
+            pt: 1.5,
+            pb: 4,
+          },
+        }}
+      >
+        {/* Drag handle - clickable to close */}
+        <Box
+          onClick={() => setStatsOpen(false)}
+          sx={{ display: 'flex', justifyContent: 'center', mb: 2, py: 1, cursor: 'pointer' }}
+        >
+          <Box sx={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(148,163,184,0.25)' }} />
+        </Box>
+
+        <Stack spacing={3}>
+          {/* Game Info */}
+          <Box>
+            <Typography sx={{ fontSize: '0.7rem', fontFamily: '"JetBrains Mono", monospace', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', mb: 1.5 }}>
+              Game Info
+            </Typography>
+            <Stack direction="row" spacing={2} justifyContent="center">
+              {[
+                { label: 'Grid', value: `${rows} x ${columns}` },
+                { label: 'Mines', value: mineCount },
+                { label: 'Density', value: `${Math.round((mineCount / (rows * columns)) * 100)}%` },
+                { label: 'Progress', value: `${progress}%` },
+              ].map((item) => (
+                <Box key={item.label} sx={{ textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, fontFamily: '"JetBrains Mono", monospace', color: '#f1f5f9' }}>
+                    {item.value}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {item.label}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+
+          {/* Stats */}
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography sx={{ fontSize: '0.7rem', fontFamily: '"JetBrains Mono", monospace', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                Stats
+              </Typography>
+              <Typography
+                component="button"
+                onClick={resetStats}
+                sx={{
+                  fontSize: '0.6rem',
+                  fontFamily: '"JetBrains Mono", monospace',
+                  color: 'rgba(148,163,184,0.3)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  background: 'none',
+                  border: '1px solid rgba(148,163,184,0.1)',
+                  borderRadius: '6px',
+                  px: 1,
+                  py: 0.3,
+                  cursor: 'pointer',
+                  '&:hover': { color: '#f472b6', borderColor: 'rgba(244,114,182,0.3)' },
+                }}
+              >
+                Reset
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={2} justifyContent="center">
+              {[
+                { label: 'Played', value: stats.gamesPlayed },
+                { label: 'Won', value: stats.gamesWon },
+                { label: 'Win Rate', value: stats.gamesPlayed > 0 ? `${Math.round((stats.gamesWon / stats.gamesPlayed) * 100)}%` : '--' },
+                { label: 'Best', value: stats.bestTime !== null ? formatTime(stats.bestTime) : '--' },
+              ].map((item) => (
+                <Box key={item.label} sx={{ textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, fontFamily: '"JetBrains Mono", monospace', color: '#f1f5f9' }}>
+                    {item.value}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {item.label}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+        </Stack>
+      </SwipeableDrawer>
 
       {/* Confirm New Game Dialog */}
       <Dialog
