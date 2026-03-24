@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
 import { Button } from 'antd';
-import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import flag from '../img/flag.png';
 import mine from '../img/mine.png';
@@ -89,17 +88,6 @@ class GameBoard extends Component {
     );
   }
 }
-
-GameBoard.propTypes = {
-  gameState: PropTypes.instanceOf(Array).isRequired,
-  mineCount: PropTypes.number.isRequired,
-  flags: PropTypes.number.isRequired,
-  onSquareClick: PropTypes.func.isRequired,
-  onSquareRightClick: PropTypes.func.isRequired,
-  gameOver: PropTypes.bool.isRequired,
-  resetGame: PropTypes.func.isRequired,
-  victory: PropTypes.bool.isRequired,
-};
 
 const GameSquare = styled.div`
   display: inline-block;

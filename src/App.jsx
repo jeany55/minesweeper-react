@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 import { InputNumber, Button } from 'antd';
 import styled from 'styled-components';
 import { isEmpty } from 'lodash';
-import 'antd/dist/antd.css';
 import './App.css';
 import {
   generateGameState,
