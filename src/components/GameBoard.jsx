@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -66,7 +66,7 @@ function MineIcon({ gameOver, victory, size }) {
   );
 }
 
-function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, digLocked }) {
+function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, digLocked, tileSize }) {
   const showMine = square.mine && (debug || gameOver);
   const isVictoryMine = square.mine && victory && !debug;
   const longPressTimer = useRef(null);
@@ -111,6 +111,9 @@ function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, d
     }
   }, []);
 
+  // Icon sizes scale with tile
+  const iconSize = Math.max(12, Math.round(tileSize * 0.45));
+
   return (
     <Box
       onMouseUp={(e) => {
@@ -123,8 +126,8 @@ function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, d
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       sx={{
-        width: { xs: 28, sm: 32, md: 36 },
-        height: { xs: 28, sm: 32, md: 36 },
+        width: tileSize,
+        height: tileSize,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -138,7 +141,7 @@ function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, d
         transition: 'all 0.15s ease',
         userSelect: 'none',
         WebkitTouchCallout: 'none',
-        fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.85rem' },
+        fontSize: Math.max(10, Math.round(tileSize * 0.38)),
         fontWeight: 700,
         fontFamily: '"JetBrains Mono", monospace',
         position: 'relative',
@@ -169,19 +172,51 @@ function GameSquare({ square, onClick, onRightClick, gameOver, victory, debug, d
         </Typography>
       )}
       {(square.flag || isVictoryMine) && !debug && (
-        <FlagIcon sx={{ fontSize: { xs: 14, sm: 16, md: 18 }, color: '#f472b6' }} />
+        <FlagIcon sx={{ fontSize: iconSize, color: '#f472b6' }} />
       )}
       {showMine && (
-        <MineIcon gameOver={gameOver} victory={victory} size={16} />
+        <MineIcon gameOver={gameOver} victory={victory} size={iconSize} />
       )}
     </Box>
   );
 }
 
-function GameBoard({ gameState, mineCount, flags, onSquareClick, onSquareRightClick, gameOver, resetGame, victory, time }) {
+// Compute tile size: fill available width, clamped between min/max for touch targets
+function useTileSize(columnCount) {
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 800
+  );
+
+  React.useEffect(() => {
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  return useMemo(() => {
+    // Available width: viewport minus container padding minus card padding minus card border
+    const containerPad = windowWidth < 600 ? 32 : windowWidth < 900 ? 48 : 64;
+    const cardPad = windowWidth < 600 ? 24 : windowWidth < 900 ? 32 : 48;
+    const gridBorder = 4;
+    const available = windowWidth - containerPad - cardPad - gridBorder;
+
+    // Each tile also has 2px border (1px each side) accounted for in its box-sizing
+    const idealSize = Math.floor(available / columnCount);
+
+    // Clamp: 24px minimum (readable), 44px max (comfortable touch on mobile), 40px max on desktop
+    const isTouch = windowWidth < 900;
+    const minSize = 24;
+    const maxSize = isTouch ? 44 : 40;
+
+    return Math.max(minSize, Math.min(maxSize, idealSize));
+  }, [columnCount, windowWidth]);
+}
+
+function GameBoard({ gameState, mineCount, flags, columnCount, onSquareClick, onSquareRightClick, gameOver, resetGame, victory, time }) {
   const [debug, setDebug] = useState(false);
   const [digLocked, setDigLocked] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const tileSize = useTileSize(columnCount);
 
   const statusColor = victory ? '#34d399' : gameOver ? '#ef4444' : '#a78bfa';
   const statusText = victory ? 'Victory!' : gameOver ? 'Game Over' : 'Playing';
@@ -333,6 +368,7 @@ function GameBoard({ gameState, mineCount, flags, onSquareClick, onSquareRightCl
                   victory={victory}
                   debug={debug}
                   digLocked={digLocked}
+                  tileSize={tileSize}
                 />
               ))}
             </Box>
@@ -346,29 +382,67 @@ function GameBoard({ gameState, mineCount, flags, onSquareClick, onSquareRightCl
         justifyContent="center"
         alignItems="center"
         spacing={1.5}
-        sx={{ mt: 2.5 }}
+        sx={{ mt: 2.5, flexWrap: 'wrap', gap: 1 }}
       >
-        {/* Dig lock toggle - mobile only */}
-        <Tooltip title={digLocked ? 'Unlock digging' : 'Lock digging (flag-only mode)'}>
-          <Button
-            variant="outlined"
-            onClick={() => setDigLocked((d) => !d)}
-            startIcon={digLocked ? <LockIcon sx={{ fontSize: 18 }} /> : <LockOpenIcon sx={{ fontSize: 18 }} />}
-            sx={{
-              display: { xs: 'inline-flex', md: 'none' },
-              borderColor: digLocked ? 'rgba(251,191,36,0.4)' : 'rgba(148,163,184,0.2)',
-              color: digLocked ? '#fbbf24' : 'text.secondary',
-              background: digLocked ? 'rgba(251,191,36,0.08)' : 'transparent',
-              fontSize: '0.8rem',
-              '&:hover': {
-                borderColor: digLocked ? 'rgba(251,191,36,0.5)' : 'rgba(148,163,184,0.3)',
-                background: digLocked ? 'rgba(251,191,36,0.12)' : 'rgba(148,163,184,0.05)',
-              },
-            }}
-          >
-            {digLocked ? 'Locked' : 'Lock'}
-          </Button>
-        </Tooltip>
+        {/* Dig lock switch - mobile/tablet only */}
+        <Box
+          onClick={() => setDigLocked((d) => !d)}
+          sx={{
+            display: { xs: 'flex', md: 'none' },
+            alignItems: 'center',
+            gap: 1.5,
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent',
+            px: 2,
+            py: 1.2,
+            borderRadius: '14px',
+            border: '1px solid',
+            borderColor: digLocked ? 'rgba(251,191,36,0.35)' : 'rgba(148,163,184,0.15)',
+            background: digLocked ? 'rgba(251,191,36,0.06)' : 'rgba(148,163,184,0.04)',
+            transition: 'all 0.2s ease',
+            userSelect: 'none',
+          }}
+        >
+          {digLocked
+            ? <LockIcon sx={{ fontSize: 18, color: '#fbbf24' }} />
+            : <LockOpenIcon sx={{ fontSize: 18, color: '#94a3b8' }} />
+          }
+          <Typography sx={{
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            color: digLocked ? '#fbbf24' : '#94a3b8',
+            fontFamily: '"JetBrains Mono", monospace',
+          }}>
+            Dig lock
+          </Typography>
+          {/* Custom switch track */}
+          <Box sx={{
+            width: 44,
+            height: 26,
+            borderRadius: '13px',
+            background: digLocked
+              ? 'rgba(251,191,36,0.3)'
+              : 'rgba(148,163,184,0.2)',
+            position: 'relative',
+            transition: 'background 0.2s ease',
+            flexShrink: 0,
+          }}>
+            {/* Switch thumb */}
+            <Box sx={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: digLocked ? '#fbbf24' : '#94a3b8',
+              position: 'absolute',
+              top: 3,
+              left: digLocked ? 21 : 3,
+              transition: 'all 0.2s ease',
+              boxShadow: digLocked
+                ? '0 0 8px rgba(251,191,36,0.4)'
+                : '0 1px 3px rgba(0,0,0,0.3)',
+            }} />
+          </Box>
+        </Box>
 
         <Tooltip title={debug ? 'Hide mines (cheating!)' : 'Reveal mines (cheating!)'}>
           <Button

@@ -341,6 +341,7 @@ function App() {
             gameState={gameState}
             mineCount={mines}
             flags={flags}
+            columnCount={columns}
             onSquareClick={onSquareLeftClick}
             onSquareRightClick={onSquareRightClick}
             gameOver={gameOver}
